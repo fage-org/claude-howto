@@ -220,6 +220,7 @@ def _build_pandoc_cmd(
         "--toc",
         "--toc-depth=2",
         "--number-sections",
+        "--file-scope",
         "-V", f"lang={config.language}",
         "-V", "papersize=a4",
         "-V", "geometry:top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm",
