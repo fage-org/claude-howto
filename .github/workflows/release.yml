@@ -1,4 +1,4 @@
-name: Build and Release EPUB
+name: Build and Release EPUB + PDF
 
 on:
   push:
@@ -6,9 +6,11 @@ on:
       - 'v*'
 
 jobs:
-  build:
+  build-epub:
     name: Build EPUB (${{ matrix.lang }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       # Don't cancel other languages if one fails — we still want to release
       # whichever languages built successfully.
@@ -30,6 +32,11 @@ jobs:
       - name: Install Mermaid CLI
         run: npm install -g @mermaid-js/mermaid-cli
 
+      # Install Noto CJK fonts so the cover image renders Chinese/Vietnamese
+      # characters correctly (required for zh and vi builds).
+      - name: Install CJK fonts
+        run: sudo apt-get install -y fonts-noto-cjk
+
       - name: Install Python dependencies
         run: |
           uv venv
@@ -50,13 +57,68 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-pdf:
+    name: Build PDF (${{ matrix.lang }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [en, vi, zh]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Mermaid CLI
+        run: npm install -g @mermaid-js/mermaid-cli
+
+      - name: Install pandoc and TeX Live (xelatex)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            pandoc \
+            texlive-xetex \
+            texlive-fonts-recommended \
+            texlive-fonts-extra \
+            fonts-noto-cjk-extra
+
+      - name: Install Python dependencies
+        run: |
+          uv venv
+          uv pip install -r scripts/requirements-dev.txt
+
+      - name: Build PDF
+        run: |
+          echo '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > /tmp/puppeteer-ci.json
+          uv run scripts/build_pdf.py \
+            --lang ${{ matrix.lang }} \
+            --puppeteer-config /tmp/puppeteer-ci.json \
+            --verbose
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-${{ matrix.lang }}
+          path: claude-howto-guide*.pdf
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [build-epub, build-pdf]
     # Release even if some language builds failed — we still publish the
-    # artifacts that did build. `needs.build.result != 'cancelled'` guards
+    # artifacts that did build. `needs.*.result != 'cancelled'` guards
     # against manually cancelled runs.
-    if: ${{ always() && needs.build.result != 'cancelled' }}
+    if: ${{ always() && needs.build-epub.result != 'cancelled' && needs.build-pdf.result != 'cancelled' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -69,12 +131,22 @@ jobs:
           pattern: epub-*
           merge-multiple: true
 
+      - name: Download all PDF artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: pdf-*
+          merge-multiple: true
+
       - name: List built artifacts
         run: ls -lh dist/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.epub
+          files: |
+            dist/*.epub
+            dist/*.pdf
           generate_release_notes: true
           fail_on_unmatched_files: true
+

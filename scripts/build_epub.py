@@ -127,9 +127,17 @@ class EPUBConfig:
     mmdc_path: str = "mmdc"
     puppeteer_config: str | None = None
 
-    # Font paths (platform-specific)
+    # Font paths (platform-specific, ordered by preference)
     title_font_paths: list[str] = field(
         default_factory=lambda: [
+            # CJK fonts (required for Chinese/Japanese/Korean cover titles)
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",  # Linux Noto CJK
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc",
+            "C:\\Windows\\Fonts\\msyhbd.ttc",  # Windows Microsoft YaHei Bold
+            "/System/Library/Fonts/PingFang.ttc",  # macOS PingFang
+            # Latin fonts
             "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
             "/System/Library/Fonts/Helvetica.ttc",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux
@@ -138,6 +146,14 @@ class EPUBConfig:
     )
     subtitle_font_paths: list[str] = field(
         default_factory=lambda: [
+            # CJK fonts
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",  # Linux Noto CJK
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+            "C:\\Windows\\Fonts\\msyh.ttc",  # Windows Microsoft YaHei
+            "/System/Library/Fonts/PingFang.ttc",  # macOS PingFang
+            # Latin fonts
             "/System/Library/Fonts/Supplemental/Arial.ttf",
             "/System/Library/Fonts/Helvetica.ttc",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
@@ -633,7 +649,11 @@ def create_cover_image(
 
 
 def create_chapter_html(
-    display_name: str, file_title: str, html_content: str, is_overview: bool = False
+    display_name: str,
+    file_title: str,
+    html_content: str,
+    is_overview: bool = False,
+    language: str = "en",
 ) -> str:
     """Create chapter HTML with proper escaping."""
     safe_display = html.escape(display_name)
@@ -641,7 +661,7 @@ def create_chapter_html(
 
     if is_overview:
         return f"""<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="{language}">
 <head>
     <meta charset="utf-8"/>
     <title>{safe_display}</title>
@@ -653,7 +673,7 @@ def create_chapter_html(
 </html>"""
     else:
         return f"""<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="{language}">
 <head>
     <meta charset="utf-8"/>
     <title>{safe_title}</title>
@@ -861,23 +881,42 @@ def md_to_html(
 # =============================================================================
 
 
-def create_stylesheet() -> epub.EpubItem:
-    """Create the EPUB stylesheet."""
-    style = """
-    body { font-family: Georgia, serif; line-height: 1.6; padding: 1em; }
-    h1 { color: #333; border-bottom: 2px solid #e67e22; padding-bottom: 0.3em; }
-    h2 { color: #444; margin-top: 1.5em; }
-    h3 { color: #555; }
-    code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; font-family: monospace; }
-    pre { background: #f4f4f4; padding: 1em; overflow-x: auto; border-radius: 5px; }
-    pre code { background: none; padding: 0; }
-    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-    th, td { border: 1px solid #ddd; padding: 0.5em; text-align: left; }
-    th { background: #f4f4f4; }
-    blockquote { border-left: 4px solid #e67e22; margin: 1em 0; padding-left: 1em; color: #666; }
-    a { color: #e67e22; }
-    img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
-    .diagram { text-align: center; margin: 1.5em 0; }
+def create_stylesheet(language: str = "en") -> epub.EpubItem:
+    """Create the EPUB stylesheet.
+
+    For CJK languages (zh, ja, ko) the font stack is extended with CJK-compatible
+    families and the line-height is increased for better readability.
+    """
+    is_cjk = language in ("zh", "ja", "ko")
+
+    if is_cjk:
+        # CJK-aware font stack: reader falls back through the list until it finds
+        # an installed font that covers the codepoint.  Explicit CJK family names
+        # ensure e-readers with multiple language font sets pick the right one.
+        body_font = (
+            '"Noto Serif CJK SC", "Source Han Serif SC", "STSong", "SimSun", '
+            '"AR PL UMing CN", Georgia, "Times New Roman", serif'
+        )
+        line_height = "1.8"
+    else:
+        body_font = "Georgia, serif"
+        line_height = "1.6"
+
+    style = f"""
+    body {{ font-family: {body_font}; line-height: {line_height}; padding: 1em; }}
+    h1 {{ color: #333; border-bottom: 2px solid #e67e22; padding-bottom: 0.3em; }}
+    h2 {{ color: #444; margin-top: 1.5em; }}
+    h3 {{ color: #555; }}
+    code {{ background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; font-family: monospace; }}
+    pre {{ background: #f4f4f4; padding: 1em; overflow-x: auto; border-radius: 5px; }}
+    pre code {{ background: none; padding: 0; }}
+    table {{ border-collapse: collapse; width: 100%; margin: 1em 0; }}
+    th, td {{ border: 1px solid #ddd; padding: 0.5em; text-align: left; }}
+    th {{ background: #f4f4f4; }}
+    blockquote {{ border-left: 4px solid #e67e22; margin: 1em 0; padding-left: 1em; color: #666; }}
+    a {{ color: #e67e22; }}
+    img {{ max-width: 100%; height: auto; display: block; margin: 1em auto; }}
+    .diagram {{ text-align: center; margin: 1.5em 0; }}
     """
     return epub.EpubItem(
         uid="style_nav",
@@ -912,7 +951,7 @@ def build_epub_async(
     book.set_cover("cover.png", cover_data)
 
     # Add CSS
-    nav_css = create_stylesheet()
+    nav_css = create_stylesheet(config.language)
     book.add_item(nav_css)
 
     # Collect all chapters in single pass
@@ -956,7 +995,7 @@ def build_epub_async(
         chapter = epub.EpubHtml(
             title=chapter_info.file_title,
             file_name=chapter_info.chapter_filename,
-            lang="en",
+            lang=config.language,
         )
 
         chapter.content = create_chapter_html(
@@ -965,6 +1004,7 @@ def build_epub_async(
             html_content,
             is_overview=chapter_info.is_folder_overview
             or chapter_info.folder_name is None,
+            language=config.language,
         )
         chapter.add_item(nav_css)
         book.add_item(chapter)
