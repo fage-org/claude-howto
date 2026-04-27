@@ -9,6 +9,8 @@ jobs:
   build-epub:
     name: Build EPUB (${{ matrix.lang }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       # Don't cancel other languages if one fails — we still want to release
       # whichever languages built successfully.
@@ -58,6 +60,8 @@ jobs:
   build-pdf:
     name: Build PDF (${{ matrix.lang }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -85,7 +89,6 @@ jobs:
             texlive-xetex \
             texlive-fonts-recommended \
             texlive-fonts-extra \
-            fonts-noto-cjk \
             fonts-noto-cjk-extra
 
       - name: Install Python dependencies

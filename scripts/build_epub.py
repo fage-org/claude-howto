@@ -891,7 +891,7 @@ def create_stylesheet(language: str = "en") -> epub.EpubItem:
 
     if is_cjk:
         # CJK-aware font stack: reader falls back through the list until it finds
-        # an installed font that covers the code-point.  Explicit CJK family names
+        # an installed font that covers the codepoint.  Explicit CJK family names
         # ensure e-readers with multiple language font sets pick the right one.
         body_font = (
             '"Noto Serif CJK SC", "Source Han Serif SC", "STSong", "SimSun", '

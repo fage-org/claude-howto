@@ -240,8 +240,6 @@ def _build_pandoc_cmd(
                 "-V", f"CJKmainfont={config.cjk_main_font}",
                 "-V", f"CJKsansfont={config.cjk_sans_font}",
                 "-V", f"CJKmonofont={config.cjk_mono_font}",
-                # Fallback to a broadly available CJK font if Noto is absent
-                "-V", "CJKoptions=BoldFont=Noto Sans CJK SC",
             ]
         else:
             cmd += [
@@ -372,9 +370,9 @@ def main() -> int:
     repo_root = (args.root or Path(__file__).parent.parent).resolve()
 
     lang_map: dict[str, tuple[Path, str, str]] = {
-        "en": (repo_root,          "claude-howto-guide.pdf",    PDFConfig.en_title),
-        "vi": (repo_root / "vi",   "claude-howto-guide-vi.pdf", PDFConfig.vi_title),
-        "zh": (repo_root / "zh",   "claude-howto-guide-zh.pdf", PDFConfig.zh_title),
+        "en": (repo_root,          "claude-howto-guide.pdf",    "Claude Code How-To Guide"),
+        "vi": (repo_root / "vi",   "claude-howto-guide-vi.pdf", "Hướng Dẫn Claude Code"),
+        "zh": (repo_root / "zh",   "claude-howto-guide-zh.pdf", "Claude Code 使用指南"),
     }
     root, default_name, title = lang_map[args.lang]
     output = (args.output or (repo_root / default_name)).resolve()
